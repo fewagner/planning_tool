@@ -49,6 +49,9 @@ export class GitHubClient {
         const at = reset ? ' It resets at ' + new Date(reset * 1000).toLocaleTimeString() + '.' : '';
         throw new GHError(`GitHub API rate limit reached.${this.token ? '' : ' Adding a token in Settings raises the limit a lot.'}${at}`, 'rate-limit', res.status);
       }
+      if (/not accessible by (personal access token|integration)/i.test(detail)) {
+        throw new GHError(`The token cannot access ${this.owner}/${this.repo}. Check in Settings that owner/repository point at your data repository, and that the token is scoped to that repository with Contents: Read and write.`, 'forbidden', res.status);
+      }
       throw new GHError(detail || 'GitHub denied the request (403). The token may lack write access to this repository.', 'forbidden', res.status);
     }
     if (res.status === 409 || res.status === 422) throw new GHError(detail || 'GitHub reported a conflict.', 'conflict', res.status);

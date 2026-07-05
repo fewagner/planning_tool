@@ -116,10 +116,29 @@ export function initSettings() {
     const out = $('.s-testresult');
     out.textContent = 'Testing…';
     try {
-      const repo = await store.client().getRepo();
-      const canPush = repo.permissions ? !!repo.permissions.push : null;
-      out.textContent = `✓ Found ${repo.full_name} (${repo.private ? 'private' : 'public'}, default branch ${repo.default_branch})`
-        + (canPush === null ? '' : canPush ? ' — token can write.' : ' — ⚠ token can NOT write.');
+      const gh = store.client();
+      const repo = await gh.getRepo();
+      let msg = `✓ Found ${repo.full_name} (${repo.private ? 'private' : 'public'}, default branch ${repo.default_branch})`;
+      if (store.settings.token) {
+        // probe the real permissions: fine-grained tokens can pass the repo
+        // lookup (public repos, or user-level permissions) yet still be unable
+        // to read or write the contents.
+        let read = false;
+        try { await gh.getHead(); read = true; } catch { }
+        let write;
+        try {
+          // an unreferenced blob is invisible and gets garbage-collected
+          await gh.req(`${gh.base()}/git/blobs`, { method: 'POST', body: { content: 'planning-tool permission check', encoding: 'utf-8' } });
+          write = true;
+        } catch (e) {
+          write = !(e.status === 403 || e.code === 'auth');
+        }
+        msg += ` — token: read ${read ? '✓' : '✗'}, write ${write ? '✓' : '✗'}.`;
+        if (!read || !write) msg += ' The token must be scoped to exactly this repository with Contents: Read and write.';
+      } else {
+        msg += repo.private ? ' — ⚠ private repository: a token is required.' : ' — no token: read-only, saving is disabled.';
+      }
+      out.textContent = msg;
     } catch (e) {
       out.textContent = '✗ ' + (e.message || e);
     }
