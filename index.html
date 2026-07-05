@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Planning Tool</title>
+  <meta name="theme-color" content="#1a1f2a">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧭</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand"><span>🧭</span><b>Planner</b><span id="repo-label" class="repo-label"></span></div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="board">Whiteboard</button>
+      <button class="tab" data-view="list">List</button>
+      <button class="tab" data-view="timeline">Timeline</button>
+    </nav>
+    <div class="top-actions">
+      <button id="save-btn" class="btn primary" disabled>Save</button>
+      <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <div id="banner" hidden></div>
+
+  <main>
+    <section id="view-board" class="view"></section>
+    <section id="view-list" class="view" hidden></section>
+    <section id="view-timeline" class="view" hidden></section>
+  </main>
+
+  <div id="toasts"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
