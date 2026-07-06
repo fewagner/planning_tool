@@ -4,7 +4,7 @@
 
 import { store } from './store.js';
 import { openEditor } from './editor.js';
-import { showPopover, trayChipDrag, itemCardHtml, isPopoverOpen } from './ui.js';
+import { showPopover, trayChipDrag, itemCardHtml, isPopoverOpen, flagsFor } from './ui.js';
 import {
   clamp, esc, fmtDate, isOverdue, lsGet, lsSet, debounce,
   DAY, EPOCH, dayFromDateStr, dateStrFromDay, todayStr, weekdayOfDay, monthName,
@@ -244,7 +244,7 @@ function layout() {
 
 function makeCard(it, x, top) {
   const card = document.createElement('div');
-  card.className = 'tl-item item-card';
+  card.className = 'tl-item item-card' + (it.status === 'done' ? ' is-done' : '');
   card.style.left = x + 'px';
   card.style.top = top + 'px';
   card.style.setProperty('--tagc', store.tagColor(it.tag));
@@ -302,7 +302,7 @@ function renderTray(undated) {
     const chip = document.createElement('button');
     chip.className = 'tray-chip';
     chip.style.setProperty('--tagc', store.tagColor(it.tag));
-    chip.innerHTML = `<span class="chip-dot"></span>${esc(it.title || 'Untitled')}`;
+    chip.innerHTML = `<span class="chip-dot"></span>${flagsFor(it)}${esc(it.title || 'Untitled')}`;
     trayChipDrag(chip, {
       label: it.title || 'Untitled',
       color: store.tagColor(it.tag),

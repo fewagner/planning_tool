@@ -158,11 +158,19 @@ export function trayChipDrag(el, opts) {
 
 // ----- shared card/markup helpers -----
 
+// Emoji markers shown before the title everywhere an item appears:
+// 💬 = flagged "to discuss", ⏳/✅ = in progress / done.
+export function flagsFor(item) {
+  return (item.discuss ? '💬 ' : '')
+    + (item.status === 'done' ? '✅ ' : item.status === 'in-progress' ? '⏳ ' : '');
+}
+
 export function itemCardHtml(item, { fmtDate, isOverdue }) {
   const meta = [];
-  if (item.person) meta.push(`<span class="chip chip-person">${esc(item.person)}</span>`);
+  for (const p of item.people || []) meta.push(`<span class="chip chip-person">${esc(p)}</span>`);
   if (item.deadline) meta.push(`<span class="chip chip-date${isOverdue(item.deadline) ? ' overdue' : ''}">${esc(fmtDate(item.deadline))}</span>`);
+  const flags = flagsFor(item);
   return `
-    <div class="item-title">${esc(item.title || 'Untitled')}</div>
+    <div class="item-title">${flags ? `<span class="item-flags">${flags}</span>` : ''}${esc(item.title || 'Untitled')}</div>
     ${meta.length ? `<div class="item-meta">${meta.join('')}</div>` : ''}`;
 }

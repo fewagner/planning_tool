@@ -236,7 +236,7 @@ function renderPeople() {
     row.innerHTML = `<span class="row-title">${esc(name)}</span>
       <button class="mini-btn" title="Remove">✕</button>`;
     row.querySelector('button').addEventListener('click', () => {
-      const used = Object.values(store.items).filter(i => i.person === name).length;
+      const used = Object.values(store.items).filter(i => (i.people || []).includes(name)).length;
       if (used && !confirm(`${name} is responsible for ${used} item(s). Remove anyway? The items keep the name until you change it.`)) return;
       store.setConfig({ people: store.config.people.filter(p => p !== name) }, 'settings');
       renderPeople();

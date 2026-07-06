@@ -22,11 +22,12 @@ tags:
 title: "Welcome — click me! 👋"
 tag: analysis
 person: Alice
+discuss: true
 x: 0
 y: 0
 ---
 
-This is an **item card**. Click it to edit everything: title, description, tag, responsible person and deadline.
+This is an **item card**. Click it to edit everything: title, description, tag, responsible people, deadline, status and the 💬 "to discuss" flag (that's why this card shows a speech bubble).
 
 - Drag cards around the whiteboard
 - Scroll (or pinch) to zoom, drag the background to pan
@@ -38,8 +39,9 @@ Paste or attach images right in this description editor.
   'data/items/order-detector-parts-d3m1.md': `---
 title: Order detector parts
 tag: hardware
-person: Bob
+person: [Alice, Bob]
 deadline: 2026-07-24
+status: in-progress
 x: 380
 y: -60
 ---
@@ -71,5 +73,18 @@ Collect ideas for the next iteration.
 
 This item has **no deadline** yet — it sits in the timeline's "no deadline"
 tray until you drag it onto a date.
+`,
+
+  'data/items/calibrate-sensors-d3m4.md': `---
+title: Calibrate the sensors
+tag: hardware
+person: Bob
+deadline: 2026-06-30
+status: done
+x: 150
+y: 190
+---
+
+Already finished — done items are shown crossed out and greyed on all pages.
 `,
 };

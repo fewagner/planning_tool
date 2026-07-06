@@ -33,8 +33,12 @@ export function initEditor() {
           <select class="e-tag"></select>
         </label>
         <label class="field">
-          <span class="field-name">Responsible</span>
-          <select class="e-person"></select>
+          <span class="field-name">Status</span>
+          <select class="e-status">
+            <option value="">Not started</option>
+            <option value="in-progress">⏳ In progress</option>
+            <option value="done">✅ Done</option>
+          </select>
         </label>
         <label class="field">
           <span class="field-name">Deadline</span>
@@ -44,6 +48,14 @@ export function initEditor() {
           </span>
         </label>
       </div>
+      <div class="field">
+        <span class="field-name">Responsible (click to assign)</span>
+        <div class="e-people chips-row"></div>
+      </div>
+      <label class="e-discuss-row">
+        <input type="checkbox" class="e-discuss">
+        <span>💬 Bring up in the next meeting</span>
+      </label>
       <div class="field-name desc-head">
         Description
         <span class="desc-actions">
@@ -77,8 +89,11 @@ export function initEditor() {
     store.updateItem(curId, { tag: e.target.value || null }, 'editor');
     paintTagDot();
   });
-  $('.e-person').addEventListener('change', e => {
-    if (curId) store.updateItem(curId, { person: e.target.value || null }, 'editor');
+  $('.e-status').addEventListener('change', e => {
+    if (curId) store.updateItem(curId, { status: e.target.value || null }, 'editor');
+  });
+  $('.e-discuss').addEventListener('change', e => {
+    if (curId) store.updateItem(curId, { discuss: e.target.checked }, 'editor');
   });
   $('.e-deadline').addEventListener('change', e => {
     if (curId) store.updateItem(curId, { deadline: e.target.value || null }, 'editor');
@@ -188,6 +203,36 @@ function paintTagDot() {
   $('.tag-dot').style.background = it ? store.tagColor(it.tag) : UNTAGGED_COLOR;
 }
 
+// Toggleable chips: everyone from settings, plus anyone assigned to the item
+// who is no longer in settings (so they can still be unassigned).
+function renderPeoplePicker(it) {
+  const host = $('.e-people');
+  const assigned = it.people || [];
+  const names = [...store.config.people];
+  for (const p of assigned) if (!names.includes(p)) names.push(p);
+  host.replaceChildren();
+  if (!names.length) {
+    host.innerHTML = '<span class="hint">No people yet — add them in ⚙ Settings.</span>';
+    return;
+  }
+  for (const name of names) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'person-toggle' + (assigned.includes(name) ? ' active' : '');
+    b.textContent = name + (store.config.people.includes(name) ? '' : ' (removed)');
+    b.addEventListener('click', () => {
+      const cur = store.items[curId];
+      if (!cur) return;
+      const people = (cur.people || []).includes(name)
+        ? cur.people.filter(p => p !== name)
+        : [...(cur.people || []), name];
+      store.updateItem(curId, { people }, 'editor');
+      renderPeoplePicker(store.items[curId]);
+    });
+    host.appendChild(b);
+  }
+}
+
 function renderFields() {
   const it = store.items[curId];
   if (!it) return;
@@ -197,7 +242,9 @@ function renderFields() {
   if (focused !== title) title.value = it.title;
 
   $('.e-tag').innerHTML = selectOptions(store.config.tags.map(t => t.name), it.tag, '— no tag —');
-  $('.e-person').innerHTML = selectOptions(store.config.people, it.person, '— nobody —');
+  $('.e-status').value = it.status || '';
+  $('.e-discuss').checked = !!it.discuss;
+  renderPeoplePicker(it);
 
   const dl = $('.e-deadline');
   if (focused !== dl) dl.value = it.deadline || '';

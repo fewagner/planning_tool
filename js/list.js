@@ -4,7 +4,7 @@
 
 import { store, UNTAGGED_COLOR } from './store.js';
 import { openEditor } from './editor.js';
-import { showPopover } from './ui.js';
+import { showPopover, flagsFor } from './ui.js';
 import { esc, fmtDate, isOverdue } from './util.js';
 
 let root, sectionsEl;
@@ -78,16 +78,19 @@ export const list = {
       });
 
       const rows = sec.querySelector('.list-rows');
-      for (const it of [...g.items].sort((a, b) => a.title.localeCompare(b.title))) {
+      const sorted = [...g.items].sort((a, b) =>
+        (a.status === 'done') - (b.status === 'done') || a.title.localeCompare(b.title));
+      for (const it of sorted) {
         const row = document.createElement('button');
-        row.className = 'list-row';
+        row.className = 'list-row' + (it.status === 'done' ? ' is-done' : '');
         row.style.setProperty('--tagc', store.tagColor(it.tag));
+        const flags = flagsFor(it);
         row.innerHTML = `
           <span class="chip-dot"></span>
-          <span class="row-title">${esc(it.title || 'Untitled')}</span>
+          <span class="row-title">${flags ? `<span class="item-flags">${flags}</span>` : ''}${esc(it.title || 'Untitled')}</span>
           ${it.description ? '<span class="row-desc" title="Has a description">≡</span>' : ''}
           <span class="row-space"></span>
-          ${it.person ? `<span class="chip chip-person">${esc(it.person)}</span>` : ''}
+          ${(it.people || []).map(p => `<span class="chip chip-person">${esc(p)}</span>`).join('')}
           ${it.deadline ? `<span class="chip chip-date${isOverdue(it.deadline) ? ' overdue' : ''}">${esc(fmtDate(it.deadline))}</span>` : ''}`;
         row.addEventListener('click', () => openEditor(it.id));
         rows.appendChild(row);

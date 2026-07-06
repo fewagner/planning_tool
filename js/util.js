@@ -135,9 +135,25 @@ export function serializeConfig(cfg) {
 
 // ---------- item files (Markdown + frontmatter) ----------
 
+export const STATUSES = ['in-progress', 'done']; // absent = not started
+
+// `person: Alice` or `person: [Alice, Bob]` (also accepts a `people:` key).
+export function parseNameList(raw) {
+  let s = String(raw ?? '').trim();
+  if (!s) return [];
+  if (s.startsWith('[') && s.endsWith(']')) s = s.slice(1, -1);
+  return s.split(',')
+    .map(p => parseYamlScalar(p))
+    .filter(p => p != null && p !== '')
+    .map(String);
+}
+
 export function parseItemFile(path, text) {
   const id = path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, '');
-  const item = { id, title: '', description: '', person: null, deadline: null, tag: null, x: null, y: null };
+  const item = {
+    id, title: '', description: '', people: [], deadline: null, tag: null,
+    status: null, discuss: false, x: null, y: null,
+  };
   let body = String(text || '');
   const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/.exec(body);
   if (m) {
@@ -145,20 +161,22 @@ export function parseItemFile(path, text) {
     for (const line of m[1].split(/\r?\n/)) {
       const km = line.match(/^([\w-]+):\s*(.*)$/);
       if (!km) continue;
-      const k = km[1];
-      if (k === 'id' || k === 'description' || !(k in item)) continue;
-      item[k] = parseYamlScalar(km[2]);
+      const v = parseYamlScalar(km[2]);
+      switch (km[1]) {
+        case 'title': item.title = v == null ? '' : String(v); break;
+        case 'tag': item.tag = v == null ? null : String(v); break;
+        case 'deadline': item.deadline = v == null ? null : String(v); break;
+        case 'person':
+        case 'people': item.people = parseNameList(km[2]); break;
+        case 'status': item.status = v == null ? null : String(v).toLowerCase().replace(/[\s_]+/g, '-'); break;
+        case 'discuss': item.discuss = v === true; break;
+        case 'x': item.x = typeof v === 'number' && isFinite(v) ? v : null; break;
+        case 'y': item.y = typeof v === 'number' && isFinite(v) ? v : null; break;
+      }
     }
   }
-  item.title = item.title == null ? '' : String(item.title);
-  if (item.deadline != null) {
-    item.deadline = String(item.deadline);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(item.deadline)) item.deadline = null;
-  }
-  item.person = item.person == null ? null : String(item.person);
-  item.tag = item.tag == null ? null : String(item.tag);
-  item.x = typeof item.x === 'number' && isFinite(item.x) ? item.x : null;
-  item.y = typeof item.y === 'number' && isFinite(item.y) ? item.y : null;
+  if (item.deadline != null && !/^\d{4}-\d{2}-\d{2}$/.test(item.deadline)) item.deadline = null;
+  if (!STATUSES.includes(item.status)) item.status = null;
   if (item.x == null || item.y == null) { item.x = null; item.y = null; }
   item.description = body.replace(/^\s*\n/, '').replace(/\s+$/, '');
   return item;
@@ -167,8 +185,12 @@ export function parseItemFile(path, text) {
 export function serializeItem(item) {
   const L = ['---', `title: ${yamlScalar(item.title || 'Untitled')}`];
   if (item.tag) L.push(`tag: ${yamlScalar(item.tag)}`);
-  if (item.person) L.push(`person: ${yamlScalar(item.person)}`);
+  const people = (item.people || []).filter(Boolean);
+  if (people.length === 1) L.push(`person: ${yamlScalar(people[0])}`);
+  else if (people.length > 1) L.push(`person: [${people.map(yamlScalar).join(', ')}]`);
   if (item.deadline) L.push(`deadline: ${item.deadline}`);
+  if (STATUSES.includes(item.status)) L.push(`status: ${item.status}`);
+  if (item.discuss) L.push('discuss: true');
   if (item.x != null && item.y != null) {
     L.push(`x: ${Math.round(item.x)}`);
     L.push(`y: ${Math.round(item.y)}`);

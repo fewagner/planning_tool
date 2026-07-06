@@ -169,7 +169,7 @@ export const store = {
     const title = (props.title || '').trim() || 'Untitled';
     let id = `${slugify(title) || 'item'}-${uid().slice(0, 4)}`;
     while (this.items[id] || this.base.items[id]) id = `${slugify(title) || 'item'}-${uid().slice(0, 4)}`;
-    const item = { description: '', person: null, deadline: null, tag: null, x: null, y: null, ...props, id, title };
+    const item = { description: '', people: [], deadline: null, tag: null, status: null, discuss: false, x: null, y: null, ...props, id, title };
     this.items[id] = item;
     this.touch();
     return item;
@@ -304,11 +304,17 @@ export const store = {
       if (l && r) {
         const out = { ...l };
         let pulled = false;
-        for (const k of ['title', 'description', 'person', 'deadline', 'tag']) {
+        for (const k of ['title', 'description', 'deadline', 'tag', 'status', 'discuss']) {
           if (eq(l[k], r[k])) continue;
           if (f && eq(l[k], f[k])) { out[k] = r[k]; pulled = true; }        // only remote changed
           else if (f && eq(r[k], f[k])) { /* only local changed — keep */ }
           else report.conflicts.push(`"${l.title || id}": ${k}`);           // both changed — local wins
+        }
+        const peopleOf = it => JSON.stringify((it && it.people) || []);
+        if (peopleOf(l) !== peopleOf(r)) {
+          if (f && peopleOf(l) === peopleOf(f)) { out.people = clone(r.people || []); pulled = true; }
+          else if (f && peopleOf(r) === peopleOf(f)) { /* keep local */ }
+          else report.conflicts.push(`"${l.title || id}": responsible people`);
         }
         if (!posEq(l, r)) {
           if (f && posEq(l, f)) { out.x = r.x; out.y = r.y; pulled = true; }

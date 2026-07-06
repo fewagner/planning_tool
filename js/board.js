@@ -4,7 +4,7 @@
 
 import { store } from './store.js';
 import { openEditor } from './editor.js';
-import { showPopover, ghostDrag, trayChipDrag, itemCardHtml, isPopoverOpen } from './ui.js';
+import { showPopover, ghostDrag, trayChipDrag, itemCardHtml, isPopoverOpen, flagsFor } from './ui.js';
 import { clamp, esc, fmtDate, isOverdue, lsGet, lsSet, debounce } from './util.js';
 
 const MIN_Z = 0.15, MAX_Z = 4;
@@ -203,7 +203,7 @@ function onEmptyClick(e) {
 
 function makeCard(it) {
   const card = document.createElement('div');
-  card.className = 'board-item item-card';
+  card.className = 'board-item item-card' + (it.status === 'done' ? ' is-done' : '');
   card.style.left = it.x + 'px';
   card.style.top = it.y + 'px';
   card.style.setProperty('--tagc', store.tagColor(it.tag));
@@ -255,7 +255,7 @@ function renderTray(unplaced) {
     const chip = document.createElement('button');
     chip.className = 'tray-chip';
     chip.style.setProperty('--tagc', store.tagColor(it.tag));
-    chip.innerHTML = `<span class="chip-dot"></span>${esc(it.title || 'Untitled')}`;
+    chip.innerHTML = `<span class="chip-dot"></span>${flagsFor(it)}${esc(it.title || 'Untitled')}`;
     trayChipDrag(chip, {
       label: it.title || 'Untitled',
       color: store.tagColor(it.tag),

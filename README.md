@@ -3,8 +3,14 @@
 A tiny project-planning app served by GitHub Pages:
 
 - **Whiteboard** — infinite pan/zoom canvas: click to add items, drag them around.
-- **List** — items grouped under a headline per tag.
+- **List** — items grouped under a headline per tag (done items sort last).
 - **Timeline** — items at their deadline on a zoomable axis; drag to reschedule.
+
+Each item has a title, Markdown description with images, one tag (colored),
+one or more responsible people, a deadline, a status (not started / ⏳ in
+progress / ✅ done — done items are shown crossed out) and a 💬 "to discuss"
+flag for marking things to bring up in the next meeting. The 💬/⏳/✅ markers
+are shown in front of the title on all three pages.
 
 No backend, no build step: plain HTML/CSS/JS. This repository contains **only
 the app code** and is public so GitHub Pages (free plan) can serve it.
