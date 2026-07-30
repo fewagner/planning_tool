@@ -15,6 +15,13 @@ Both are published by `.github/workflows/pages.yml` (Pages source must be set
 to **GitHub Actions** in the repo settings). Every push to `main` or `beta`
 redeploys both channels; superseded deploys are cancelled instead of racing.
 
+**One-time setup:** the auto-created `github-pages` environment only permits
+deployments from the default branch, so beta-triggered runs are rejected
+("deploy" job fails with no steps) until you allow the branch: *Settings →
+Environments → github-pages → Deployment branches and tags → add `beta`*.
+Until that is done, a push to `beta` alone deploys nothing — follow it with a
+push (or empty commit) on `main`, which deploys both channels.
+
 **Shared storage caveat:** `/` and `/beta/` are the same browser origin, so
 they share `localStorage` (projects, tokens, drafts). That is intentional —
 beta is tested against real projects — but it means **any change to stored
