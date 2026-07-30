@@ -3,6 +3,12 @@
 All notable, user-visible changes. The app shows a one-time notice when the
 version changes; details live here.
 
+## 1.1.1 — 2026-07-30
+
+- Fixed: the **first save into a completely empty repository** failed with a
+  misleading "busy branch" error (GitHub's git API refuses empty repos). The
+  first save now initializes the repository correctly.
+
 ## 1.1.0 — 2026-07-06
 
 - **Multiple projects**: one browser can hold several projects (each its own

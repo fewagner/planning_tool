@@ -2,7 +2,7 @@
 // Reads via the branches/trees/blobs endpoints (raw.githubusercontent.com when no
 // token is set), writes one atomic commit per save via the git data API.
 
-import { b64DecodeUtf8 } from './util.js';
+import { b64DecodeUtf8, b64EncodeUtf8 } from './util.js';
 
 export class GHError extends Error {
   constructor(message, code, status) {
@@ -54,6 +54,7 @@ export class GitHubClient {
       }
       throw new GHError(detail || 'GitHub denied the request (403). The token may lack write access to this repository.', 'forbidden', res.status);
     }
+    if (/repository is empty/i.test(detail)) throw new GHError('The repository has no commits yet.', 'empty-repo', res.status);
     if (res.status === 409 || res.status === 422) throw new GHError(detail || 'GitHub reported a conflict.', 'conflict', res.status);
     throw new GHError(detail || `GitHub API error (${res.status}).`, 'api', res.status);
   }
@@ -69,7 +70,7 @@ export class GitHubClient {
       const b = await this.req(`${this.base()}/branches/${encodeURIComponent(this.branch)}`);
       return { sha: b.commit.sha, treeSha: b.commit.commit.tree.sha };
     } catch (e) {
-      if (e.code === 'not-found' || e.code === 'conflict') {
+      if (e.code === 'not-found' || e.code === 'conflict' || e.code === 'empty-repo') {
         await this.getRepo();
         return null;
       }
@@ -109,10 +110,33 @@ export class GitHubClient {
   // changes: [{path, text} | {path, base64} | {path, delete: true}]
   // parent: {sha, treeSha} or null for an empty repo (bootstraps the branch).
   async commitFiles({ message, parent, changes }) {
+    if (!parent) {
+      // A completely empty repository rejects every git-data call with
+      // 409 "Git Repository is empty". The contents API is the one endpoint
+      // that can create the first commit, so the first file goes through it
+      // (creating the branch), and the rest follow as a normal commit.
+      const creates = changes.filter(ch => !ch.delete);
+      if (!creates.length) return null;
+      const first = creates[0];
+      await this.req(`${this.base()}/contents/${encPath(first.path)}`, {
+        method: 'PUT',
+        body: {
+          message,
+          content: first.base64 != null ? first.base64 : b64EncodeUtf8(first.text),
+          branch: this.branch,
+        },
+      });
+      const head = await this.getHead();
+      if (!head) throw new GHError('The repository was initialized but its branch could not be found — check the branch name in Settings.', 'not-found', 404);
+      const rest = creates.slice(1);
+      if (!rest.length) return head;
+      return this.commitFiles({ message, parent: head, changes: rest });
+    }
+
     const tree = [];
     for (const ch of changes) {
       if (ch.delete) {
-        if (parent) tree.push({ path: ch.path, mode: '100644', type: 'blob', sha: null });
+        tree.push({ path: ch.path, mode: '100644', type: 'blob', sha: null });
       } else if (ch.base64 != null) {
         const blob = await this.req(`${this.base()}/git/blobs`, {
           method: 'POST', body: { content: ch.base64, encoding: 'base64' },
@@ -125,21 +149,15 @@ export class GitHubClient {
     if (!tree.length) return null;
     const newTree = await this.req(`${this.base()}/git/trees`, {
       method: 'POST',
-      body: parent ? { base_tree: parent.treeSha, tree } : { tree },
+      body: { base_tree: parent.treeSha, tree },
     });
     const commit = await this.req(`${this.base()}/git/commits`, {
       method: 'POST',
-      body: { message, tree: newTree.sha, parents: parent ? [parent.sha] : [] },
+      body: { message, tree: newTree.sha, parents: [parent.sha] },
     });
-    if (parent) {
-      await this.req(`${this.base()}/git/refs/heads/${encodeURIComponent(this.branch)}`, {
-        method: 'PATCH', body: { sha: commit.sha },
-      });
-    } else {
-      await this.req(`${this.base()}/git/refs`, {
-        method: 'POST', body: { ref: `refs/heads/${this.branch}`, sha: commit.sha },
-      });
-    }
+    await this.req(`${this.base()}/git/refs/heads/${encodeURIComponent(this.branch)}`, {
+      method: 'PATCH', body: { sha: commit.sha },
+    });
     return { sha: commit.sha, treeSha: newTree.sha };
   }
 }
