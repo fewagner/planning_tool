@@ -1,0 +1,68 @@
+# Deploys the planner to GitHub Pages:
+#   main branch -> https://<host>/planning_tool/        (production)
+#   beta branch -> https://<host>/planning_tool/beta/   (test channel)
+#
+# Requires the repo's Pages source to be set to "GitHub Actions"
+# (Settings -> Pages -> Source). The concurrency group cancels superseded
+# deploys instead of letting them race (the cause of sporadic
+# "Deployment failed, try again later" errors with branch-based deploys).
+
+name: Deploy Pages (main + beta)
+
+on:
+  push:
+    branches: [main, beta]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+
+      - name: Checkout beta (ok if the branch does not exist)
+        id: beta
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: beta
+          path: beta
+
+      - name: Assemble site
+        run: |
+          mkdir site
+          cp -R main/* site/
+          rm -rf site/.github
+          touch site/.nojekyll
+          if [ -f beta/index.html ]; then
+            mkdir -p site/beta
+            cp -R beta/* site/beta/
+            rm -rf site/beta/.github
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

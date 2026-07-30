@@ -9,6 +9,7 @@ import { initSettings, openSettings } from './settings.js';
 import { initProjects } from './projects.js';
 import { toast } from './ui.js';
 import { b64DecodeUtf8, lsGet, lsSet, uid } from './util.js';
+import { APP_VERSION, CHANGELOG_URL } from './version.js';
 
 const views = { board, list, timeline };
 let active = 'board';
@@ -85,7 +86,13 @@ function updateBanner() {
   const banner = document.getElementById('banner');
   const needsToken = !store.demo && store.configured() && !store.settings.token
     && store.lastError && ['not-found', 'auth', 'raw', 'forbidden'].includes(store.lastError.code);
-  if (!store.demo && !store.configured() && store.projects.length > 0) {
+  if (store.formatTooNew()) {
+    banner.hidden = false;
+    banner.innerHTML = `
+      <span>This project was saved by a newer version of the planner. Reload to update the app — saving is paused until then.</span>
+      <button class="btn b-reload">Reload now</button>`;
+    banner.querySelector('.b-reload').addEventListener('click', () => location.reload());
+  } else if (!store.demo && !store.configured() && store.projects.length > 0) {
     // projects exist but the active one is broken — the welcome screen
     // covers the zero-projects case
     banner.hidden = false;
@@ -181,6 +188,13 @@ function boot() {
   store.init();
   switchView(location.hash.slice(1) || 'board');
   updateChrome();
+
+  // one-time "what's new" notice after an app update (not on first ever visit)
+  const lastVersion = lsGet('pt:version');
+  if (lastVersion && lastVersion !== APP_VERSION) {
+    setTimeout(() => toast(`Planner updated to v${APP_VERSION} — tap to see what's new.`, 'info', 9000, CHANGELOG_URL), 800);
+  }
+  lsSet('pt:version', APP_VERSION);
 
   // debugging/console access
   window.PT = { store };

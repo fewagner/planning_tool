@@ -7,6 +7,7 @@ import { store } from './store.js';
 import { openProjectModal } from './projects.js';
 import { toast } from './ui.js';
 import { esc, b64EncodeUtf8, debounce } from './util.js';
+import { APP_VERSION, CHANGELOG_URL } from './version.js';
 
 let scrim, modal;
 const $ = sel => modal.querySelector(sel);
@@ -67,6 +68,12 @@ export function initSettings() {
         Opening it stores the token in that browser. Anyone with the link can write to your repo — share it only
         with people you'd hand your token to, and never post it publicly.</p>
         <button class="btn s-copylink">Copy link with token</button>
+        <p class="hint"><b>Tip — one token per person:</b> instead of sharing one token with everyone, create a
+        separate <a href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">fine-grained
+        token</a> for each person (all on the same data repository, Contents: Read and write), paste it here, copy the
+        link, send it, then paste your own token back. To <b>revoke one person</b>, delete their token on that GitHub
+        page — their link stops working within moments, everyone else is unaffected, and the data is untouched.
+        <b>Rotating</b> works the same way: delete a token, create a fresh one, send a new link.</p>
       </section>
 
       <section>
@@ -96,6 +103,9 @@ export function initSettings() {
           <button class="btn danger s-discard">Discard unsaved changes</button>
         </div>
       </section>
+
+      <p class="hint settings-footer">Planner v${APP_VERSION} ·
+        <a href="${CHANGELOG_URL}" target="_blank" rel="noopener">changelog</a></p>
 
     </div>`;
 

@@ -113,7 +113,8 @@ export function parseYamlConfig(text) {
       if (m) obj[m[1]] = parseYamlScalar(m[2]);
     }
   }
-  const cfg = { name: '', people: [], tags: [] };
+  const cfg = { format: 1, name: '', people: [], tags: [] };
+  if (typeof out.format === 'number' && out.format >= 1) cfg.format = out.format;
   if (typeof out.name === 'string') cfg.name = out.name;
   cfg.people = (Array.isArray(out.people) ? out.people : []).filter(p => typeof p === 'string' && p);
   cfg.tags = (Array.isArray(out.tags) ? out.tags : [])
@@ -129,6 +130,8 @@ export function serializeConfig(cfg) {
     '# Managed by the planning tool settings — safe to edit by hand too.',
     '',
   ];
+  L.push(`format: ${cfg.format || 1}`);
+  L.push('');
   if (cfg.name) {
     L.push(`name: ${yamlScalar(cfg.name)}`);
     L.push('');

@@ -8,6 +8,7 @@
 
 import { GitHubClient, GHError } from './github.js';
 import { DEMO_FILES } from './demo.js';
+import { FORMAT_VERSION } from './version.js';
 import {
   ITEM_DIR, IMAGE_DIR, CONFIG_PATH,
   parseItemFile, serializeItem, parseYamlConfig, serializeConfig,
@@ -96,6 +97,14 @@ export const store = {
 
   configured() { return !!(this.settings.owner && this.settings.repo); },
   client() { return new GitHubClient(this.settings); },
+
+  // The project was saved by an app with a newer data format: never write to
+  // it (that could downgrade/corrupt it) — the user just needs to reload to
+  // get the current app.
+  formatTooNew() {
+    return (this.base.config.format || 1) > FORMAT_VERSION
+      || (this.config.format || 1) > FORMAT_VERSION;
+  },
   repoKey() { return this.demo ? 'demo' : `${this.settings.owner}/${this.settings.repo}#${this.settings.branch}`; },
   key(name) { return `pt:${this.repoKey()}:${name}`; },
 
@@ -434,10 +443,11 @@ export const store = {
       if (ln === fn) name = rn;
       else if (rn !== fn) report.conflicts.push('project name');
     }
-    if (serializeConfig({ name, people, tags }) !== serializeConfig(this.config)) report.pulled++;
+    const format = Math.max(this.config.format || 1, newBase.config.format || 1);
+    if (serializeConfig({ format, name, people, tags }) !== serializeConfig(this.config)) report.pulled++;
 
     this.items = merged;
-    this.config = { name, people, tags };
+    this.config = { format, name, people, tags };
     this._setBase(newBase);
     this._draftBaseSha = newBase.sha;
     this._fork = { items: clone(newBase.items), config: clone(newBase.config) };
@@ -517,6 +527,7 @@ export const store = {
     if (this.demo) throw new GHError('Demo mode: open Settings and configure your own repository to save.', 'demo');
     if (!this.configured()) throw new GHError('Configure the GitHub repository in Settings first.', 'config');
     if (!this.settings.token) throw new GHError('Add a GitHub token in Settings to be able to save.', 'no-token');
+    if (this.formatTooNew()) throw new GHError('This project was saved by a newer version of the planner — reload the page to update the app before saving.', 'format');
     if (!this.changes().length) return { nothing: true };
 
     this.saving = true;

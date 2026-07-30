@@ -292,6 +292,7 @@ button { font: inherit; color: inherit; }
   transition: opacity 0.3s, transform 0.3s;
   max-width: 100%;
 }
+a.toast { text-decoration: none; display: block; }
 .toast-ok { background: #1d7a4f; color: #fff; }
 .toast-err { background: #b23434; color: #fff; }
 .toast-out { opacity: 0; transform: translateY(8px); }
@@ -827,6 +828,8 @@ main {
 .modal-body .field { margin-bottom: 8px; }
 
 .hint { font-size: 12px; color: var(--muted); margin: 6px 0; }
+.hint a { color: var(--accent); }
+.settings-footer { text-align: center; margin-top: 18px; }
 .hint code { background: color-mix(in srgb, var(--line) 45%, transparent); padding: 0 4px; border-radius: 4px; }
 
 .token-row { display: flex; gap: 6px; }
