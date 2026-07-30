@@ -10,8 +10,9 @@ import { GitHubClient, GHError } from './github.js';
 import { DEMO_FILES } from './demo.js';
 import { FORMAT_VERSION } from './version.js';
 import {
-  ITEM_DIR, IMAGE_DIR, CONFIG_PATH,
+  ITEM_DIR, IMAGE_DIR, BOARD_DIR, CONFIG_PATH,
   parseItemFile, serializeItem, parseYamlConfig, serializeConfig,
+  parseBoardFile, serializeBoardFile,
   slugify, uid, lsGet, lsSet, lsDel, debounce,
 } from './util.js';
 
@@ -57,6 +58,7 @@ function commitMessage(base, changes) {
 
 function parseFiles(sha, files) {
   const items = {};
+  const board = {};
   let config = { name: '', people: [], tags: [] };
   let configText = null;
   for (const [path, f] of Object.entries(files)) {
@@ -66,15 +68,19 @@ function parseFiles(sha, files) {
     } else if (path.startsWith(ITEM_DIR) && path.endsWith('.md')) {
       const it = parseItemFile(path, f.text);
       items[it.id] = it;
+    } else if (path.startsWith(BOARD_DIR) && path.endsWith('.md')) {
+      const el = parseBoardFile(path, f.text);
+      if (el) board[el.id] = el;
     }
   }
-  return { sha, files, items, config, configText };
+  return { sha, files, items, board, config, configText };
 }
 
 export const store = {
   settings: { owner: '', repo: '', branch: 'main', token: '' },
   base: parseFiles(null, {}),
   items: {},
+  board: {},
   config: { name: '', people: [], tags: [] },
   projects: [],
   active: null,
@@ -184,6 +190,7 @@ export const store = {
     const draft = lsGet(this.key('draft'));
     if (draft && draft.items) {
       this.items = draft.items;
+      this.board = draft.board || clone(this.base.board);
       this.config = draft.config || { name: '', people: [], tags: [] };
       this.pendingImages = draft.pendingImages || {};
       this._draftBaseSha = draft.baseSha ?? null;
@@ -203,6 +210,7 @@ export const store = {
 
   resetToBase() {
     this.items = clone(this.base.items);
+    this.board = clone(this.base.board);
     this.config = clone(this.base.config);
     this.pendingImages = {};
     this._hasDraft = false;
@@ -218,6 +226,7 @@ export const store = {
     const ok = lsSet(this.key('draft'), {
       baseSha: this._draftBaseSha,
       items: this.items,
+      board: this.board,
       config: this.config,
       pendingImages: this.pendingImages,
       fork: this._fork,
@@ -230,7 +239,7 @@ export const store = {
     if (!this._hasDraft) {
       this._hasDraft = true;
       this._draftBaseSha = this.base.sha;
-      this._fork = { items: clone(this.base.items), config: clone(this.base.config) };
+      this._fork = { items: clone(this.base.items), board: clone(this.base.board), config: clone(this.base.config) };
     }
     this._persistDraft();
     this.emit('change', { source });
@@ -257,6 +266,31 @@ export const store = {
 
   deleteItem(id) {
     delete this.items[id];
+    this.touch();
+  },
+
+  addBoardEl(props) {
+    const type = props.type;
+    let id = `${type}-${uid()}`;
+    while (this.board[id] || this.base.board[id]) id = `${type}-${uid()}`;
+    const el = {
+      text: '', x: 0, y: 0, x2: null, y2: null, w: null, h: null,
+      size: null, color: '', fill: '', ...props, id, type,
+    };
+    this.board[id] = el;
+    this.touch();
+    return el;
+  },
+
+  updateBoardEl(id, patch, source) {
+    const el = this.board[id];
+    if (!el) return;
+    Object.assign(el, patch);
+    this.touch(source);
+  },
+
+  deleteBoardEl(id) {
+    delete this.board[id];
     this.touch();
   },
 
@@ -302,6 +336,15 @@ export const store = {
     for (const id of Object.keys(this.base.items)) {
       if (!this.items[id]) list.push({ path: ITEM_DIR + id + '.md', delete: true });
     }
+    for (const el of Object.values(this.board)) {
+      const path = BOARD_DIR + el.id + '.md';
+      const text = serializeBoardFile(el);
+      const baseEl = this.base.board[el.id];
+      if (!baseEl || serializeBoardFile(baseEl) !== text) list.push({ path, text });
+    }
+    for (const id of Object.keys(this.base.board)) {
+      if (!this.board[id]) list.push({ path: BOARD_DIR + id + '.md', delete: true });
+    }
     const cfgText = serializeConfig(this.config);
     const baseCfgText = this.base.configText != null
       ? serializeConfig(this.base.config)
@@ -339,7 +382,9 @@ export const store = {
   async _fetchBase(gh, head) {
     const tree = await gh.getTree(head.treeSha);
     const wanted = tree.filter(f => f.type === 'blob'
-      && (f.path === CONFIG_PATH || (f.path.startsWith(ITEM_DIR) && f.path.endsWith('.md'))));
+      && (f.path === CONFIG_PATH
+        || (f.path.startsWith(ITEM_DIR) && f.path.endsWith('.md'))
+        || (f.path.startsWith(BOARD_DIR) && f.path.endsWith('.md'))));
     const files = {};
     for (const f of wanted) {
       const prev = this.base.files[f.path];
@@ -413,6 +458,38 @@ export const store = {
       }
     }
 
+    // whiteboard decorations: same per-field three-way as items
+    const forkBoard = fork.board || this.base.board || {};
+    const mergedBoard = {};
+    const sameBoardEl = (a, b) => serializeBoardFile(a) === serializeBoardFile(b);
+    const bids = new Set([
+      ...Object.keys(forkBoard), ...Object.keys(this.board), ...Object.keys(newBase.board),
+    ]);
+    for (const id of bids) {
+      const f = forkBoard[id] || null;
+      const l = this.board[id] || null;
+      const r = newBase.board[id] || null;
+      if (l && r) {
+        const out = { ...l };
+        let pulled = false;
+        for (const k of ['text', 'x', 'y', 'x2', 'y2', 'w', 'h', 'size', 'color', 'fill']) {
+          if (eq(l[k], r[k])) continue;
+          if (f && eq(l[k], f[k])) { out[k] = r[k]; pulled = true; }
+          else if (f && eq(r[k], f[k])) { /* keep local */ }
+          else report.conflicts.push(`board ${l.type}: ${k}`);
+        }
+        if (pulled) report.pulled++;
+        mergedBoard[id] = out;
+      } else if (l && !r) {
+        if (!f) mergedBoard[id] = l;                    // created here — keep
+        else if (sameBoardEl(l, f)) report.pulled++;    // deleted remotely — accept
+        else mergedBoard[id] = l;                       // edited here, deleted remotely — keep
+      } else if (!l && r) {
+        if (!f) { mergedBoard[id] = clone(r); report.pulled++; }       // created remotely
+        else if (!sameBoardEl(r, f)) mergedBoard[id] = clone(r);       // deleted here but edited remotely
+      }
+    }
+
     // people: ordered set, three-way (remote order, local removals + additions applied)
     const fp = fork.config.people || [], lp = this.config.people || [], rp = newBase.config.people || [];
     const removedHere = fp.filter(p => !lp.includes(p));
@@ -447,10 +524,11 @@ export const store = {
     if (serializeConfig({ format, name, people, tags }) !== serializeConfig(this.config)) report.pulled++;
 
     this.items = merged;
+    this.board = mergedBoard;
     this.config = { format, name, people, tags };
     this._setBase(newBase);
     this._draftBaseSha = newBase.sha;
-    this._fork = { items: clone(newBase.items), config: clone(newBase.config) };
+    this._fork = { items: clone(newBase.items), board: clone(newBase.board), config: clone(newBase.config) };
     if (!this.changes().length) {
       lsDel(this.key('draft'));
       this.resetToBase();
@@ -506,6 +584,7 @@ export const store = {
     const draft = lsGet(this.key('draft'));
     if (draft && draft.items) {
       this.items = draft.items;
+      this.board = draft.board || clone(this.base.board);
       this.config = draft.config || { name: '', people: [], tags: [] };
       this.pendingImages = draft.pendingImages || {};
       this._draftBaseSha = draft.baseSha ?? null;

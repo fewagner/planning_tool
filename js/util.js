@@ -4,6 +4,7 @@
 
 export const ITEM_DIR = 'data/items/';
 export const IMAGE_DIR = 'data/images/';
+export const BOARD_DIR = 'data/board/';
 export const CONFIG_PATH = 'data/config.yml';
 
 export const esc = s => String(s ?? '')
@@ -212,6 +213,64 @@ export function serializeItem(item) {
   L.push('---');
   const desc = String(item.description || '').trim();
   return L.join('\n') + '\n' + (desc ? '\n' + desc + '\n' : '');
+}
+
+// ---------- whiteboard decoration files (data/board/<id>.md) ----------
+// Text boxes and shapes drawn on the whiteboard. Frontmatter holds geometry
+// and style, the Markdown body holds the text (for type: text). Colors are
+// hex, optionally 8-digit for transparency (#rrggbbaa). Unknown/invalid
+// files are skipped, never destroyed.
+
+export const BOARD_TYPES = ['text', 'rect', 'ellipse', 'line'];
+const COLOR_RE = /^#([0-9a-f]{6}|[0-9a-f]{8}|[0-9a-f]{3,4})$/i;
+
+export function parseBoardFile(path, text) {
+  const id = path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, '');
+  const el = {
+    id, type: '', text: '', x: 0, y: 0,
+    x2: null, y2: null, w: null, h: null, size: null, color: '', fill: '',
+  };
+  let body = String(text || '');
+  const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/.exec(body);
+  if (m) {
+    body = body.slice(m[0].length);
+    for (const line of m[1].split(/\r?\n/)) {
+      const km = line.match(/^([\w-]+):\s*(.*)$/);
+      if (!km) continue;
+      const v = parseYamlScalar(km[2]);
+      switch (km[1]) {
+        case 'type': el.type = v == null ? '' : String(v); break;
+        case 'x': case 'y': case 'x2': case 'y2': case 'w': case 'h': case 'size':
+          el[km[1]] = typeof v === 'number' && isFinite(v) ? v : null; break;
+        case 'color': case 'fill': el[km[1]] = v == null ? '' : String(v); break;
+      }
+    }
+  }
+  if (!BOARD_TYPES.includes(el.type)) return null;
+  el.x = el.x ?? 0;
+  el.y = el.y ?? 0;
+  if (!COLOR_RE.test(el.color)) el.color = '';
+  if (!COLOR_RE.test(el.fill)) el.fill = '';
+  el.text = body.replace(/^\s*\n/, '').replace(/\s+$/, '');
+  return el;
+}
+
+export function serializeBoardFile(el) {
+  const L = ['---', `type: ${el.type}`, `x: ${Math.round(el.x)}`, `y: ${Math.round(el.y)}`];
+  if (el.x2 != null && el.y2 != null) {
+    L.push(`x2: ${Math.round(el.x2)}`);
+    L.push(`y2: ${Math.round(el.y2)}`);
+  }
+  if (el.w != null && el.h != null) {
+    L.push(`w: ${Math.round(el.w)}`);
+    L.push(`h: ${Math.round(el.h)}`);
+  }
+  if (el.size != null) L.push(`size: ${Math.round(el.size)}`);
+  if (el.color) L.push(`color: ${JSON.stringify(el.color)}`);
+  if (el.fill) L.push(`fill: ${JSON.stringify(el.fill)}`);
+  L.push('---');
+  const body = String(el.text || '').trim();
+  return L.join('\n') + '\n' + (body ? '\n' + body + '\n' : '');
 }
 
 // ---------- Markdown subset renderer (escape first, then transform) ----------

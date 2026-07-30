@@ -75,6 +75,40 @@ This item has **no deadline** yet — it sits in the timeline's "no deadline"
 tray until you drag it onto a date.
 `,
 
+  'data/board/rect-d3m1.md': `---
+type: rect
+x: -420
+y: -230
+w: 340
+h: 300
+size: 3
+color: "#8b5cf6"
+fill: "#8b5cf61e"
+---
+`,
+
+  'data/board/text-d3m1.md': `---
+type: text
+x: -406
+y: -216
+size: 24
+color: "#8b5cf6"
+---
+
+Ideas 💡✨
+`,
+
+  'data/board/line-d3m1.md': `---
+type: line
+x: -60
+y: -90
+x2: 110
+y2: -30
+size: 4
+color: "#f59e0b"
+---
+`,
+
   'data/items/calibrate-sensors-d3m4.md': `---
 title: Calibrate the sensors
 tag: hardware

@@ -3,6 +3,15 @@
 All notable, user-visible changes. The app shows a one-time notice when the
 version changes; details live here.
 
+## 1.2.0 — 2026-07-31
+
+- **Text boxes and shapes on the whiteboard**: a tool palette (T / ▭ / ◯ / ╱)
+  draws draggable text (emoji welcome 🎉), rectangles, ellipses and lines.
+  Select one to change color and transparency, fill, size/thickness, resize
+  via handles, or delete; double-click a text box to edit it. Decorations
+  are stored as small files in `data/board/` in the data repository, merge
+  per-field like items, and are simply ignored by older app versions.
+
 ## 1.1.1 — 2026-07-30
 
 - Fixed: the **first save into a completely empty repository** failed with a
