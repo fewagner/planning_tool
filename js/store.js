@@ -14,11 +14,34 @@ import {
   slugify, uid, lsGet, lsSet, lsDel, debounce,
 } from './util.js';
 
-const SETTINGS_KEY = 'pt:settings';
+const SETTINGS_KEY = 'pt:settings';   // legacy single-project settings
+const PROJECTS_KEY = 'pt:projects';
+const ACTIVE_KEY = 'pt:active';
 export const UNTAGGED_COLOR = '#8a93a6';
 const FALLBACK_TAG_COLORS = ['#4f8cff', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#06b6d4', '#e879a0', '#84cc16'];
 
 const clone = o => JSON.parse(JSON.stringify(o));
+
+// Returns the project list, converting a legacy single `pt:settings` entry on
+// first use. Exported so the share-link import (which runs before the store
+// boots) migrates the same way instead of clobbering the legacy project.
+export function migrateProjects() {
+  let projects = lsGet(PROJECTS_KEY);
+  if (!Array.isArray(projects)) {
+    projects = [];
+    const legacy = lsGet(SETTINGS_KEY);
+    if (legacy && legacy.owner && legacy.repo) {
+      projects.push({
+        id: 'p-' + uid(), name: '',
+        owner: legacy.owner, repo: legacy.repo,
+        branch: legacy.branch || 'main', token: legacy.token || '',
+      });
+      lsSet(ACTIVE_KEY, projects[0].id);
+    }
+    lsSet(PROJECTS_KEY, projects);
+  }
+  return projects.filter(p => p && p.id && p.owner && p.repo);
+}
 
 function commitMessage(base, changes) {
   const n = { add: 0, update: 0, remove: 0 };
@@ -33,7 +56,7 @@ function commitMessage(base, changes) {
 
 function parseFiles(sha, files) {
   const items = {};
-  let config = { people: [], tags: [] };
+  let config = { name: '', people: [], tags: [] };
   let configText = null;
   for (const [path, f] of Object.entries(files)) {
     if (path === CONFIG_PATH) {
@@ -51,7 +74,9 @@ export const store = {
   settings: { owner: '', repo: '', branch: 'main', token: '' },
   base: parseFiles(null, {}),
   items: {},
-  config: { people: [], tags: [] },
+  config: { name: '', people: [], tags: [] },
+  projects: [],
+  active: null,
   pendingImages: {},   // repo path -> data URL, committed on save
   demo: false,
   syncing: false,
@@ -74,24 +99,63 @@ export const store = {
   repoKey() { return this.demo ? 'demo' : `${this.settings.owner}/${this.settings.repo}#${this.settings.branch}`; },
   key(name) { return `pt:${this.repoKey()}:${name}`; },
 
-  // ----- settings -----
+  // ----- settings / projects -----
+  // A browser can hold several projects (each = one data repo + its token).
+  // `settings` is an alias for the *active* project entry, so all existing
+  // repo-keyed storage (drafts, caches, view state) is per-project for free.
 
   loadSettings() {
-    const s = lsGet(SETTINGS_KEY) || {};
-    this.settings = { owner: '', repo: '', branch: 'main', token: '', ...s };
-    if (!this.settings.owner && location.hostname.endsWith('.github.io')) {
-      this.settings.owner = location.hostname.split('.')[0];
-      if (!this.settings.repo) {
-        const seg = location.pathname.split('/').filter(Boolean)[0];
-        this.settings.repo = seg || `${this.settings.owner}.github.io`;
-      }
+    this.projects = migrateProjects();
+    const activeId = lsGet(ACTIVE_KEY);
+    this.active = this.projects.find(p => p.id === activeId) || this.projects[0] || null;
+    if (this.active) {
+      lsSet(ACTIVE_KEY, this.active.id);
+      this.active.branch ||= 'main';
+      this.settings = this.active;
+    } else {
+      this.settings = { owner: '', repo: '', branch: 'main', token: '' };
     }
   },
 
   saveSettings(patch) {
     Object.assign(this.settings, patch);
-    lsSet(SETTINGS_KEY, this.settings);
+    if (this.active) lsSet(PROJECTS_KEY, this.projects);
     this.emit('change', { source: 'settings' });
+  },
+
+  projectName() {
+    if (this.demo) return 'Demo project';
+    if (this.config && this.config.name) return this.config.name;
+    if (this.active && this.active.name) return this.active.name;
+    return this.configured() ? `${this.settings.owner}/${this.settings.repo}` : '';
+  },
+
+  addProject({ name = '', owner, repo, branch = 'main', token = '' }) {
+    let p = this.projects.find(q => q.owner === owner && q.repo === repo && (q.branch || 'main') === branch);
+    if (p) {
+      if (token) p.token = token;
+      if (name) p.name = name;
+    } else {
+      p = { id: 'p-' + uid(), name, owner, repo, branch, token };
+      this.projects.push(p);
+    }
+    lsSet(PROJECTS_KEY, this.projects);
+    lsSet(ACTIVE_KEY, p.id);
+    return p;
+  },
+
+  removeProject(id) {
+    this.projects = this.projects.filter(p => p.id !== id);
+    lsSet(PROJECTS_KEY, this.projects);
+    if (this.active && this.active.id === id) lsSet(ACTIVE_KEY, this.projects[0]?.id || '');
+  },
+
+  // Switching = set the active pointer and reboot the app; every project's
+  // draft/cache lives under its own storage keys, so nothing is lost.
+  switchProject(id) {
+    lsSet(ACTIVE_KEY, id);
+    if (location.search) location.href = location.pathname + location.hash; // also leaves ?demo=1
+    else location.reload();
   },
 
   // ----- boot -----
@@ -111,7 +175,7 @@ export const store = {
     const draft = lsGet(this.key('draft'));
     if (draft && draft.items) {
       this.items = draft.items;
-      this.config = draft.config || { people: [], tags: [] };
+      this.config = draft.config || { name: '', people: [], tags: [] };
       this.pendingImages = draft.pendingImages || {};
       this._draftBaseSha = draft.baseSha ?? null;
       this._fork = draft.fork || { items: clone(this.base.items), config: clone(this.base.config) };
@@ -232,7 +296,7 @@ export const store = {
     const cfgText = serializeConfig(this.config);
     const baseCfgText = this.base.configText != null
       ? serializeConfig(this.base.config)
-      : serializeConfig({ people: [], tags: [] });
+      : serializeConfig({ name: '', people: [], tags: [] });
     if (cfgText !== baseCfgText) list.push({ path: CONFIG_PATH, text: cfgText });
     for (const [path, dataUrl] of Object.entries(this.pendingImages)) {
       list.push({ path, base64: String(dataUrl).split(',')[1] || '' });
@@ -362,10 +426,18 @@ export const store = {
     for (const lt of this.config.tags || []) {
       if (!rT[lt.name] && !fT[lt.name] && !tags.some(t => t.name === lt.name)) tags.push({ ...lt }); // added here
     }
-    if (serializeConfig({ people, tags }) !== serializeConfig(this.config)) report.pulled++;
+
+    // project name: plain three-way scalar
+    const fn = fork.config.name || '', ln = this.config.name || '', rn = newBase.config.name || '';
+    let name = ln;
+    if (ln !== rn) {
+      if (ln === fn) name = rn;
+      else if (rn !== fn) report.conflicts.push('project name');
+    }
+    if (serializeConfig({ name, people, tags }) !== serializeConfig(this.config)) report.pulled++;
 
     this.items = merged;
-    this.config = { people, tags };
+    this.config = { name, people, tags };
     this._setBase(newBase);
     this._draftBaseSha = newBase.sha;
     this._fork = { items: clone(newBase.items), config: clone(newBase.config) };
@@ -424,7 +496,7 @@ export const store = {
     const draft = lsGet(this.key('draft'));
     if (draft && draft.items) {
       this.items = draft.items;
-      this.config = draft.config || { people: [], tags: [] };
+      this.config = draft.config || { name: '', people: [], tags: [] };
       this.pendingImages = draft.pendingImages || {};
       this._draftBaseSha = draft.baseSha ?? null;
       this._fork = draft.fork || { items: clone(this.base.items), config: clone(this.base.config) };

@@ -4,6 +4,7 @@
 // committed on save like everything else.
 
 import { store } from './store.js';
+import { openProjectModal } from './projects.js';
 import { toast } from './ui.js';
 import { esc, b64EncodeUtf8, debounce } from './util.js';
 
@@ -26,7 +27,19 @@ export function initSettings() {
     <div class="modal-body">
 
       <section>
-        <h3>GitHub connection</h3>
+        <h3>Project</h3>
+        <label class="field">
+          <span class="field-name">Project name (stored in data/config.yml — everyone in the project sees it)</span>
+          <input class="s-projname" maxlength="60" placeholder="e.g. Party planning">
+        </label>
+        <div class="s-projects rows"></div>
+        <div class="btn-row">
+          <button class="btn s-addproject">＋ Add another project</button>
+        </div>
+      </section>
+
+      <section>
+        <h3>GitHub connection (this project)</h3>
         <div class="field-grid">
           <label class="field"><span class="field-name">Owner</span><input class="s-owner" placeholder="user or org" autocapitalize="off"></label>
           <label class="field"><span class="field-name">Repository</span><input class="s-repo" placeholder="repo name" autocapitalize="off"></label>
@@ -107,6 +120,15 @@ export function initSettings() {
     $(sel).addEventListener('input', saveConn);
   }
 
+  $('.s-projname').addEventListener('change', e => {
+    store.setConfig({ name: e.target.value.trim() }, 'settings');
+  });
+
+  $('.s-addproject').addEventListener('click', () => {
+    closeSettings();
+    openProjectModal();
+  });
+
   $('.s-showtoken').addEventListener('click', () => {
     const t = $('.s-token');
     t.type = t.type === 'password' ? 'text' : 'password';
@@ -152,7 +174,7 @@ export function initSettings() {
   $('.s-copylink').addEventListener('click', async () => {
     const { owner, repo, branch, token } = store.settings;
     if (!token) { toast('Add a token first.', 'err'); return; }
-    const payload = b64EncodeUtf8(JSON.stringify({ owner, repo, branch, token }))
+    const payload = b64EncodeUtf8(JSON.stringify({ owner, repo, branch, token, name: store.projectName() }))
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     const url = `${location.origin}${location.pathname}#setup=${payload}`;
     try {
@@ -208,6 +230,7 @@ export function closeSettings() {
 }
 
 function renderAll() {
+  $('.s-projname').value = store.config.name || '';
   $('.s-owner').value = store.settings.owner;
   $('.s-repo').value = store.settings.repo;
   $('.s-branch').value = store.settings.branch;
@@ -219,8 +242,32 @@ function renderAll() {
     : n
       ? `${n} unsaved change(s) are stored in this browser and survive reloads. "Save" commits them to GitHub.`
       : 'Everything is saved. Local edits are kept in this browser until you press Save.';
+  renderProjects();
   renderPeople();
   renderTags();
+}
+
+function renderProjects() {
+  const host = $('.s-projects');
+  host.replaceChildren();
+  for (const p of store.projects) {
+    const isActive = !store.demo && store.active && p.id === store.active.id;
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <span class="row-title">${esc(p.name || `${p.owner}/${p.repo}`)}
+        <span class="hint" style="display:inline">· ${esc(`${p.owner}/${p.repo}`)}</span></span>
+      ${isActive ? '<span class="chip">active</span>' : '<button class="mini-btn p-switch">switch to</button>'}
+      <button class="mini-btn p-remove" title="Remove from this browser">✕</button>`;
+    row.querySelector('.p-switch')?.addEventListener('click', () => store.switchProject(p.id));
+    row.querySelector('.p-remove').addEventListener('click', () => {
+      if (!confirm(`Remove "${p.name || `${p.owner}/${p.repo}`}" from this browser?\n\nThe repository and all its data stay untouched on GitHub — this only forgets the connection and token here.`)) return;
+      store.removeProject(p.id);
+      if (!store.demo && (!store.active || store.active.id === p.id)) location.reload();
+      else renderProjects();
+    });
+    host.appendChild(row);
+  }
 }
 
 function renderPeople() {

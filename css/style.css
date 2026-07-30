@@ -71,18 +71,94 @@ button { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 7px; font-size: 15px; }
 .brand b { letter-spacing: 0.2px; }
 
-.repo-label {
+.project-btn {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--text);
   background: var(--bg);
   border: 1px solid var(--line);
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 20px;
   max-width: 40vw;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+  font-weight: 500;
 }
+.project-btn:hover { border-color: var(--accent); }
+
+.proj-menu {
+  position: fixed;
+  z-index: 230;
+  min-width: 240px;
+  max-width: min(340px, calc(100vw - 16px));
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  box-shadow: var(--shadow-big);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+}
+.proj-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.proj-menu-item:hover { background: var(--bg); }
+.proj-menu-item.active .proj-menu-name { font-weight: 700; }
+.proj-menu-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.proj-menu-repo {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 45%;
+}
+.proj-menu-check { color: var(--accent); font-weight: 700; }
+.proj-menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
+.proj-menu-add { color: var(--accent); font-weight: 600; }
+
+/* ---------- welcome / onboarding ---------- */
+
+.welcome {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  overflow-y: auto;
+  background: var(--bg);
+  padding: 26px 14px 60px;
+}
+.welcome-card {
+  max-width: 620px;
+  margin: 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 26px 26px 18px;
+}
+.welcome-logo { font-size: 40px; text-align: center; }
+.welcome-card h2 { margin: 8px 0 6px; text-align: center; font-size: 21px; }
+.welcome-pitch { text-align: center; color: var(--muted); margin: 0 0 16px; }
+.welcome-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
+
+.setup-steps { margin: 10px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.setup-steps a { color: var(--accent); }
+.setup-steps code { background: color-mix(in srgb, var(--line) 45%, transparent); padding: 0 4px; border-radius: 4px; }
 
 .tabs {
   display: flex;
@@ -822,7 +898,7 @@ input[type="color"] {
   .topbar { padding: 6px 8px; gap: 8px; }
   .tabs { order: 3; width: 100%; }
   .tab { flex: 1; text-align: center; padding: 7px 4px; }
-  .repo-label { display: none; }
+  .project-btn { max-width: 34vw; }
   .canvas-hint { font-size: 11px; top: 6px; }
   .zoombar { bottom: 92px; right: 8px; }
   .tray { left: 6px; right: 6px; bottom: 6px; }

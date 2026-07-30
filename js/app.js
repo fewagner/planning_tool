@@ -1,31 +1,46 @@
 // app.js — boot, tab routing, save button, sync banner, share-link import.
 
-import { store } from './store.js';
+import { store, migrateProjects } from './store.js';
 import { board } from './board.js';
 import { list } from './list.js';
 import { timeline } from './timeline.js';
 import { initEditor } from './editor.js';
 import { initSettings, openSettings } from './settings.js';
+import { initProjects } from './projects.js';
 import { toast } from './ui.js';
-import { b64DecodeUtf8, lsGet, lsSet } from './util.js';
+import { b64DecodeUtf8, lsGet, lsSet, uid } from './util.js';
 
 const views = { board, list, timeline };
 let active = 'board';
 
-// ----- share-link import (#setup=…) — before the store boots -----
+// ----- share-link import (#setup=…) — adds a project, before the store boots -----
 
 function importSetupHash() {
   const m = location.hash.match(/[#&]setup=([A-Za-z0-9\-_]+)/);
   if (!m) return;
   try {
     const json = JSON.parse(b64DecodeUtf8(m[1].replace(/-/g, '+').replace(/_/g, '/')));
-    const prev = lsGet('pt:settings') || {};
-    const next = { ...prev };
-    for (const k of ['owner', 'repo', 'branch', 'token']) {
-      if (typeof json[k] === 'string' && json[k]) next[k] = json[k];
+    if (typeof json.owner !== 'string' || typeof json.repo !== 'string' || !json.owner || !json.repo) {
+      throw new Error('missing owner/repo');
     }
-    lsSet('pt:settings', next);
-    setTimeout(() => toast(`GitHub settings for ${next.owner}/${next.repo} imported from the link.`, 'ok'), 300);
+    const projects = migrateProjects();
+    const branch = (typeof json.branch === 'string' && json.branch) || 'main';
+    let p = projects.find(q => q.owner === json.owner && q.repo === json.repo && (q.branch || 'main') === branch);
+    if (p) {
+      if (typeof json.token === 'string' && json.token) p.token = json.token;
+      if (typeof json.name === 'string' && json.name) p.name = json.name;
+    } else {
+      p = {
+        id: 'p-' + uid(),
+        name: typeof json.name === 'string' ? json.name : '',
+        owner: json.owner, repo: json.repo, branch,
+        token: typeof json.token === 'string' ? json.token : '',
+      };
+      projects.push(p);
+    }
+    lsSet('pt:projects', projects);
+    lsSet('pt:active', p.id);
+    setTimeout(() => toast(`Project ${p.name || `${p.owner}/${p.repo}`} added from the link.`, 'ok'), 300);
   } catch {
     setTimeout(() => toast('The setup link could not be read.', 'err'), 300);
   }
@@ -63,18 +78,6 @@ function updateChrome() {
   }
   saveBtn.classList.toggle('attention', n > 0 && !store.saving);
 
-  const label = document.getElementById('repo-label');
-  if (store.demo) {
-    label.textContent = 'demo';
-    label.title = 'Demo mode — nothing is written to GitHub';
-  } else if (store.configured()) {
-    label.textContent = `${store.settings.owner}/${store.settings.repo}` + (store.syncing ? ' ⟳' : '');
-    label.title = `Branch ${store.settings.branch}`;
-  } else {
-    label.textContent = 'not connected';
-    label.title = 'Open settings to connect a GitHub repository';
-  }
-
   updateBanner();
 }
 
@@ -82,12 +85,13 @@ function updateBanner() {
   const banner = document.getElementById('banner');
   const needsToken = !store.demo && store.configured() && !store.settings.token
     && store.lastError && ['not-found', 'auth', 'raw', 'forbidden'].includes(store.lastError.code);
-  if (!store.demo && !store.configured()) {
+  if (!store.demo && !store.configured() && store.projects.length > 0) {
+    // projects exist but the active one is broken — the welcome screen
+    // covers the zero-projects case
     banner.hidden = false;
     banner.innerHTML = `
-      <span>Not connected to GitHub — changes stay in this browser.</span>
-      <button class="btn b-settings">Open settings</button>
-      <a class="btn" href="?demo=1#board">Try the demo</a>`;
+      <span>This project is missing its repository settings.</span>
+      <button class="btn b-settings">Open settings</button>`;
     banner.querySelector('.b-settings').addEventListener('click', openSettings);
   } else if (needsToken) {
     banner.hidden = false;
@@ -129,6 +133,7 @@ function boot() {
   board.init(document.getElementById('view-board'));
   list.init(document.getElementById('view-list'));
   timeline.init(document.getElementById('view-timeline'));
+  initProjects();
 
   document.getElementById('tabs').addEventListener('click', e => {
     const b = e.target.closest('.tab');

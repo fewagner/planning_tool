@@ -82,8 +82,9 @@ export function parseYamlScalar(raw) {
   return s;
 }
 
-// Parses the config shape: `key: []`, or `key:` followed by `- scalar` or
-// `- key: value` items with indented `key: value` continuation lines.
+// Parses the config shape: scalar top-level keys (`name: …`), `key: []`, or
+// `key:` followed by `- scalar` or `- key: value` items with indented
+// `key: value` continuation lines.
 export function parseYamlConfig(text) {
   const out = {};
   let key = null, obj = null;
@@ -93,7 +94,12 @@ export function parseYamlConfig(text) {
     const indent = rawLine.match(/^ */)[0].length;
     if (indent === 0) {
       const m = trimmed.match(/^([\w-]+):\s*(.*)$/);
-      if (m) { key = m[1]; obj = null; out[key] ||= []; }
+      if (m) {
+        obj = null;
+        const val = m[2].trim();
+        if (!val || val === '[]') { key = m[1]; out[key] ||= []; }
+        else { key = null; out[m[1]] = parseYamlScalar(val); }
+      }
       continue;
     }
     if (!key) continue;
@@ -107,9 +113,10 @@ export function parseYamlConfig(text) {
       if (m) obj[m[1]] = parseYamlScalar(m[2]);
     }
   }
-  const cfg = { people: [], tags: [] };
-  cfg.people = (out.people || []).filter(p => typeof p === 'string' && p);
-  cfg.tags = (out.tags || [])
+  const cfg = { name: '', people: [], tags: [] };
+  if (typeof out.name === 'string') cfg.name = out.name;
+  cfg.people = (Array.isArray(out.people) ? out.people : []).filter(p => typeof p === 'string' && p);
+  cfg.tags = (Array.isArray(out.tags) ? out.tags : [])
     .map(t => typeof t === 'string' ? { name: t, color: '' } : t)
     .filter(t => t && typeof t === 'object' && t.name)
     .map(t => ({ name: String(t.name), color: t.color ? String(t.color) : '' }));
@@ -122,6 +129,10 @@ export function serializeConfig(cfg) {
     '# Managed by the planning tool settings — safe to edit by hand too.',
     '',
   ];
+  if (cfg.name) {
+    L.push(`name: ${yamlScalar(cfg.name)}`);
+    L.push('');
+  }
   L.push(cfg.people.length ? 'people:' : 'people: []');
   for (const p of cfg.people) L.push(`  - ${yamlScalar(p)}`);
   L.push('');

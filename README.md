@@ -15,31 +15,43 @@ are shown in front of the title on all three pages.
 No backend, no build step: plain HTML/CSS/JS. This repository contains **only
 the app code** and is public so GitHub Pages (free plan) can serve it.
 
-The planning **data lives in a separate, private repository** (one Markdown
-file per item plus a small config — see that repo's README for the format).
-The app reads and writes it through the GitHub API using a fine-grained
-personal access token, so:
+The planning **data lives in separate (ideally private) repositories** — one
+per project, one Markdown file per item plus a small config. The app reads
+and writes them through the GitHub API using fine-grained personal access
+tokens, so:
 
-- without a token, visitors to this site see an empty planner;
-- with a token (entered once in ⚙ Settings, or imported via a share link),
-  you get full read/write access — every Save is one git commit in the data
-  repository.
+- without a token, visitors to this site see the welcome screen / an empty
+  planner;
+- with a token, you get full read/write access — every Save is one git
+  commit in that project's data repository.
 
-## Setup
+## Using it
 
-1. Serve this repo with GitHub Pages: *Settings → Pages → Deploy from a
-   branch → `main` / root*.
-2. Keep your data in a **private** repo (e.g. `planning_data`).
-3. Create a fine-grained PAT scoped to *only the data repo* with
-   **Contents: Read and write**.
-4. Open the app → ⚙ Settings → set owner / repository / branch of the *data*
-   repo and paste the token. *Test connection* should report write access.
-5. Use *Copy link with token* to log in other devices/people — treat that
-   link like the token itself.
+Open the app. With no project configured, a **welcome screen** walks through
+the whole setup: create a data repo (private, can be empty), create a
+fine-grained token (*Repository access* = only that repo, *Contents: Read
+and write*), connect. That's it — the connection is verified before it is
+added.
+
+- **Multiple projects**: one browser can hold any number of projects (each a
+  repo + token). The project button in the top bar switches between them;
+  "＋ Add project…" adds more. Unsaved drafts are kept per project.
+- **Project name**: set in ⚙ Settings; it is stored in the project's
+  `data/config.yml`, so everyone in the project sees the same name.
+- **Inviting people**: ⚙ Settings → *Copy link with token*. Opening that
+  link adds the project (name, repo and token included) to the recipient's
+  browser. Treat the link like the token itself.
+- An empty data repo is bootstrapped automatically on the first save.
 
 Unsaved edits are kept in the browser (they survive reloads and tab
 switches). Saving pulls the latest data first and merges it three-way, so
 concurrent edits from several people/devices don't overwrite each other.
+
+## Hosting your own copy
+
+Fork/copy this repo and serve it with GitHub Pages (*Settings → Pages →
+Deploy from a branch → `main` / root*). The app is fully static and
+repo-agnostic — nothing in it is specific to one user.
 
 ## Local development
 
