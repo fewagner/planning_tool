@@ -3,6 +3,14 @@
 All notable, user-visible changes. The app shows a one-time notice when the
 version changes; details live here.
 
+## 1.3.0 — 2026-07-31
+
+- Whiteboard elements (text boxes, rectangles, ellipses) can be **rotated**:
+  select one and use the ↻ slider in the style panel (double-click the
+  slider to snap back to 0°). Resizing works while rotated.
+- Fixed: text boxes placed toward the right of the board collapsed into a
+  narrow vertical column of letters.
+
 ## 1.2.0 — 2026-07-31
 
 - **Text boxes and shapes on the whiteboard**: a tool palette (T / ▭ / ◯ / ╱)

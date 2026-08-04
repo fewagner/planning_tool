@@ -472,7 +472,7 @@ export const store = {
       if (l && r) {
         const out = { ...l };
         let pulled = false;
-        for (const k of ['text', 'x', 'y', 'x2', 'y2', 'w', 'h', 'size', 'color', 'fill']) {
+        for (const k of ['text', 'x', 'y', 'x2', 'y2', 'w', 'h', 'size', 'rot', 'color', 'fill']) {
           if (eq(l[k], r[k])) continue;
           if (f && eq(l[k], f[k])) { out[k] = r[k]; pulled = true; }
           else if (f && eq(r[k], f[k])) { /* keep local */ }

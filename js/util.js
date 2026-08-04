@@ -228,7 +228,7 @@ export function parseBoardFile(path, text) {
   const id = path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, '');
   const el = {
     id, type: '', text: '', x: 0, y: 0,
-    x2: null, y2: null, w: null, h: null, size: null, color: '', fill: '',
+    x2: null, y2: null, w: null, h: null, size: null, rot: 0, color: '', fill: '',
   };
   let body = String(text || '');
   const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*\r?\n?/.exec(body);
@@ -242,6 +242,8 @@ export function parseBoardFile(path, text) {
         case 'type': el.type = v == null ? '' : String(v); break;
         case 'x': case 'y': case 'x2': case 'y2': case 'w': case 'h': case 'size':
           el[km[1]] = typeof v === 'number' && isFinite(v) ? v : null; break;
+        case 'rot':
+          el.rot = typeof v === 'number' && isFinite(v) ? ((Math.round(v) % 360) + 360) % 360 : 0; break;
         case 'color': case 'fill': el[km[1]] = v == null ? '' : String(v); break;
       }
     }
@@ -266,6 +268,7 @@ export function serializeBoardFile(el) {
     L.push(`h: ${Math.round(el.h)}`);
   }
   if (el.size != null) L.push(`size: ${Math.round(el.size)}`);
+  if (el.rot) L.push(`rot: ${((Math.round(el.rot) % 360) + 360) % 360}`);
   if (el.color) L.push(`color: ${JSON.stringify(el.color)}`);
   if (el.fill) L.push(`fill: ${JSON.stringify(el.fill)}`);
   L.push('---');

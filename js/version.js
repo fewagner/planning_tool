@@ -2,7 +2,7 @@
 // version. See docs/RELEASING.md for when and how to bump these.
 
 // Shown in settings; drives the one-time "what's new" notice after an update.
-export const APP_VERSION = '1.2.0';
+export const APP_VERSION = '1.3.0';
 
 // Version of the on-disk data format (config.yml `format:` key). Bump ONLY on
 // a breaking change to how data files are read/written — see RELEASING.md.

@@ -389,6 +389,7 @@ function styleDeco(node, el) {
     node.style.top = el.y + 'px';
     node.style.fontSize = (el.size || 20) + 'px';
     node.style.color = el.color || 'var(--text)';
+    node.style.transform = el.rot ? `rotate(${el.rot}deg)` : '';
   } else if (el.type === 'rect' || el.type === 'ellipse') {
     node.style.left = el.x + 'px';
     node.style.top = el.y + 'px';
@@ -397,6 +398,7 @@ function styleDeco(node, el) {
     node.style.border = `${el.size || 3}px solid ${el.color || '#4f8cff'}`;
     node.style.background = el.fill || 'transparent';
     node.style.borderRadius = el.type === 'ellipse' ? '50%' : '10px';
+    node.style.transform = el.rot ? `rotate(${el.rot}deg)` : '';
   } else if (el.type === 'line') {
     const x2 = el.x2 ?? el.x + 100, y2 = el.y2 ?? el.y;
     const x = Math.min(el.x, x2), y = Math.min(el.y, y2);
@@ -463,6 +465,19 @@ function attachDeco(node, el) {
 
 let handleNodes = [];
 
+// rotate point (px,py) around (cx,cy) by deg
+function rotPoint(px, py, cx, cy, deg) {
+  const a = deg * Math.PI / 180;
+  const dx = px - cx, dy = py - cy;
+  return [cx + dx * Math.cos(a) - dy * Math.sin(a), cy + dx * Math.sin(a) + dy * Math.cos(a)];
+}
+
+// the resize handle sits on the element's actual (rotated) bottom-right corner
+function seHandlePos(el) {
+  const w = el.w || 100, h = el.h || 100;
+  return rotPoint(el.x + w, el.y + h, el.x + w / 2, el.y + h / 2, el.rot || 0);
+}
+
 function addHandles(frag, el) {
   handleNodes = [];
   const mk = (cx, cy, kind) => {
@@ -474,7 +489,7 @@ function addHandles(frag, el) {
     handleNodes.push({ node: h, kind });
     frag.appendChild(h);
   };
-  if (el.type === 'rect' || el.type === 'ellipse') mk(el.x + (el.w || 100), el.y + (el.h || 100), 'se');
+  if (el.type === 'rect' || el.type === 'ellipse') mk(...seHandlePos(el), 'se');
   else if (el.type === 'line') { mk(el.x, el.y, 'a'); mk(el.x2 ?? el.x + 100, el.y2 ?? el.y, 'b'); }
 }
 
@@ -482,7 +497,11 @@ function positionHandles() {
   const el = selectedId && store.board[selectedId];
   if (!el) return;
   for (const { node, kind } of handleNodes) {
-    if (kind === 'se') { node.style.left = (el.x + el.w) + 'px'; node.style.top = (el.y + el.h) + 'px'; }
+    if (kind === 'se') {
+      const [hx, hy] = seHandlePos(el);
+      node.style.left = hx + 'px';
+      node.style.top = hy + 'px';
+    }
     else if (kind === 'a') { node.style.left = el.x + 'px'; node.style.top = el.y + 'px'; }
     else if (kind === 'b') { node.style.left = el.x2 + 'px'; node.style.top = el.y2 + 'px'; }
   }
@@ -497,8 +516,12 @@ function attachHandleDrag(h, el, kind) {
     const move = ev => {
       const dx = (ev.clientX - s.x) / z, dy = (ev.clientY - s.y) / z;
       if (kind === 'se') {
-        el.w = Math.max(24, s.ow + dx);
-        el.h = Math.max(24, s.oh + dy);
+        // map the screen delta into the element's rotated frame
+        const a = -(el.rot || 0) * Math.PI / 180;
+        const rdx = dx * Math.cos(a) - dy * Math.sin(a);
+        const rdy = dx * Math.sin(a) + dy * Math.cos(a);
+        el.w = Math.max(24, s.ow + rdx);
+        el.h = Math.max(24, s.oh + rdy);
       } else if (kind === 'a') {
         el.x = s.ox + dx;
         el.y = s.oy + dy;
@@ -652,6 +675,11 @@ function buildPanel() {
       <input type="color" class="dp-fill">
       <input type="range" class="dp-fillalpha" min="0" max="100" title="Fill opacity (0 = none)">
     </div>
+    <div class="dp-row dp-rotrow">
+      <span title="Rotation">↻</span>
+      <input type="range" class="dp-rot" min="0" max="359" step="1" title="Rotate">
+      <span class="dp-rotlabel"></span>
+    </div>
     <div class="dp-row">
       <button class="mini-btn dp-smaller" title="Smaller">−</button>
       <span class="dp-sizelabel"></span>
@@ -688,6 +716,25 @@ function buildPanel() {
   $('.dp-alpha').addEventListener('input', applyStroke);
   $('.dp-fill').addEventListener('input', applyFill);
   $('.dp-fillalpha').addEventListener('input', applyFill);
+  $('.dp-rot').addEventListener('input', () => {
+    const el = store.board[selectedId];
+    if (!el) return;
+    const rot = +$('.dp-rot').value || 0;
+    $('.dp-rotlabel').textContent = rot + '°';
+    panelFillGuard = true;
+    store.updateBoardEl(selectedId, { rot }, 'deco-panel');
+    panelFillGuard = false;
+  });
+  $('.dp-rot').addEventListener('dblclick', () => {
+    // quick reset to 0°
+    const el = store.board[selectedId];
+    if (!el) return;
+    $('.dp-rot').value = 0;
+    $('.dp-rotlabel').textContent = '0°';
+    panelFillGuard = true;
+    store.updateBoardEl(selectedId, { rot: 0 }, 'deco-panel');
+    panelFillGuard = false;
+  });
   const step = dir => {
     const el = store.board[selectedId];
     if (!el) return;
@@ -725,6 +772,12 @@ function fillPanel() {
   }
   $('.dp-sizelabel').textContent = String(el.size || (isText ? 20 : el.type === 'line' ? 4 : 3)) + (isText ? ' px' : '');
   $('.dp-edit').style.display = isText ? '' : 'none';
+  const canRotate = el.type !== 'line'; // lines rotate via their endpoints
+  $('.dp-rotrow').style.display = canRotate ? '' : 'none';
+  if (canRotate) {
+    $('.dp-rot').value = el.rot || 0;
+    $('.dp-rotlabel').textContent = (el.rot || 0) + '°';
+  }
 }
 
 function positionPanel() {
